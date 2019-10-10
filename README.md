@@ -12,7 +12,7 @@ ________________________________________________________________________________
 ## What is Scan Matching?
 Scan Matching is a classical Machine Perception Problem in which we want to find the transformation between 2 different pointclouds scans of the same object. It can be used by a robot to find its own location in the world by analysing its position with respect to the orientation of known objects in a known environment. We perform scan matching by an algorithm called the iterative closest point search algorithm. 
 Let us start with the ever famous stanford bunny.
-
+<img src ="img/Bunny.gif" width = 600/>
 
 ## Iterative Closest Point Search
 Iterative Closest Point Search works by computing the correspondence between initial location and final location by naively considering the closest point in the final location for each point in the initial location. Then it computes the best approximation for the rotation and the translation matrix and transforms the initial position accordingly. It keeps repeating this until a stopping condition is encountered like a threshold or any other convergence criterion. Let us look the original Algorithm in its original glory.
@@ -31,7 +31,28 @@ And with some final sprinkle of math magic, we get
 <img src = "img/MathMagic.jpg">
 
 
+
 (Shh! just silently make sure the determinant is positive otherwise you'll be in huge trouble )
+
+
+## Results  
+*  Dragon  
+<img src ="img/Dragon.gif" width = 600/>  
+
+
+
+*  Buddha  
+<img src ="img/Budha.gif" width = 600/>  
+
+
+*  Cube  
+<img src ="img/Cube.gif" width = 600/>  
+
+
+*  Cylinder  
+<img src ="img/Cylinder.gif" width = 600/>  
+
+
 ## Implementation
 ### CPU Implementation
 We implement the whole algorithm on the CPU, using highly optimized [svd3 library by Eric Jang](https://github.com/ericjang/svd3). Here are some statistics about how the CPU scores with number of points in the point cloud.
