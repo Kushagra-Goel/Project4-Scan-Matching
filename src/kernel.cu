@@ -274,7 +274,7 @@ __global__ void kernFindCorrespondingPoint(glm::vec3 *initialPoints, int numInit
 	}
 }
 
-__global__ void kernTraverseKDTree(int numInitialPoints, int numOfCol, glm::vec3 *dev_pos, Scan_Matching::Node *dev_kdTree_stack, glm::vec4* dev_kdTree, glm::vec3 *correspondingPoints) {
+__global__ void kernTraverseKDTree(int numInitialPoints, int numOfCol, int kdTreeLength, glm::vec3 *dev_pos, Scan_Matching::Node *dev_kdTree_stack, glm::vec4* dev_kdTree, glm::vec3 *correspondingPoints) {
 	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 	if (index < numInitialPoints) {
 		int top = 0;
@@ -289,9 +289,10 @@ __global__ void kernTraverseKDTree(int numInitialPoints, int numOfCol, glm::vec3
 				continue;
 			}
 			glm::vec3 newPoint = glm::vec3(dev_kdTree[currentNode.pointIdx]);
+			int axis = currentNode.depth - (3 * (int)(currentNode.depth / 3));
 			if (!currentNode.goodNode) {
 				glm::vec3 newPointParent = glm::vec3(dev_kdTree[(currentNode.pointIdx - 1)/2]);
-				if (abs(basePoint[currentNode.depth % 3] - newPointParent[currentNode.depth % 3]) >= minDistance) {
+				if (abs(basePoint[axis] - newPointParent[axis]) >= minDistance) {
 					continue;
 				}
 			}
@@ -302,16 +303,21 @@ __global__ void kernTraverseKDTree(int numInitialPoints, int numOfCol, glm::vec3
 				minDistance = newDistance;
 			}
 
-			bool left = basePoint[currentNode.depth % 3] < newPoint[currentNode.depth % 3];
+			bool left = basePoint[axis] < newPoint[axis];
 
 			int goodSide = (2 * currentNode.pointIdx) + ((left) ? 1 : 2);
 			int badSide = (2 * currentNode.pointIdx) + ((left) ? 2 : 1);
 
-			Scan_Matching::Node goodNode(goodSide, currentNode.depth + 1, true);
-			Scan_Matching::Node badNode(badSide, currentNode.depth + 1, false);
+			if (badSide < kdTreeLength) {
 
-			dev_kdTree_stack[index * numOfCol + ++top] = badNode;
-			dev_kdTree_stack[index * numOfCol + ++top] = goodNode;
+				Scan_Matching::Node badNode(badSide, currentNode.depth + 1, false);
+				dev_kdTree_stack[index * numOfCol + ++top] = badNode;
+			}
+			if (goodSide < kdTreeLength) {
+
+				Scan_Matching::Node goodNode(goodSide, currentNode.depth + 1, true);
+				dev_kdTree_stack[index * numOfCol + ++top] = goodNode;
+			}
 		}
 		correspondingPoints[index] = closestPoint;
 	}
@@ -394,7 +400,7 @@ void Scan_Matching::runGPUWithKDTree(int numFinalPoints, int numInitialPoints, i
 	dim3 fullBlocksPerGrid((numInitialPoints + blockSize - 1) / blockSize);
 
 	//kernFindCorrespondingPoint << <fullBlocksPerGrid, blockSize >> > (dev_pos, numInitialPoints, dev_correspond, numFinalPoints);
-	kernTraverseKDTree << <fullBlocksPerGrid, blockSize >> > (numInitialPoints, ceil(log2(kdTreeLength)), dev_pos, dev_kdTree_stack, dev_kdTree, dev_correspond);
+	kernTraverseKDTree << <fullBlocksPerGrid, blockSize >> > (numInitialPoints, ceil(log2(kdTreeLength)), kdTreeLength, dev_pos, dev_kdTree_stack, dev_kdTree, dev_correspond);
 	checkCUDAErrorWithLine("kernTraverseKDTree failed!");
 
 	thrust::device_ptr<glm::vec3> thrust_dev_pos(dev_pos);
