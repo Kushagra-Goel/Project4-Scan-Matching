@@ -22,9 +22,20 @@
 #define _gamma 5.828427124 // FOUR_GAMMA_SQUARED = sqrt(8)+3;
 #define _cstar 0.923879532 // cos(pi/8)
 #define _sstar 0.3826834323 // sin(p/8)
+
+#define gone					1065353216
+#define gsine_pi_over_eight		1053028117
+#define gcosine_pi_over_eight   1064076127
+#define gone_half				0.5f
+#define gsmall_number			1.e-12f
+#define gtiny_number			1.e-20f
+#define gfour_gamma_squared		5.8284273147583007813f
 //#define EPSILON 1e-6
 
-//#include <cuda.h>
+
+union un { float f; unsigned int ui; };
+
+#include <cuda.h>
 #include <math.h>
 
 /* This is a novel and fast routine for the reciprocal square root of an
@@ -441,5 +452,4 @@ void pd(float a11, float a12, float a13,
 		v11, v21, v31, v12, v22, v32, v13, v23, v33,
 		u11, u12, u13, u21, u22, u23, u31, u32, u33);
 }
-
 #endif

@@ -65,6 +65,8 @@ dim3 threadsPerBlock(blockSize);
 // These are called ping-pong buffers.
 glm::vec3 *dev_pos;
 glm::vec3 *dev_correspond;
+glm::vec4 *dev_kdTree;
+Scan_Matching::Node *dev_kdTree_stack;
 glm::vec3 *dev_vel1;
 glm::vec3 *dev_vel2;
 
@@ -95,7 +97,7 @@ __global__ void kernColorPoints(int N, glm::vec3 *intBuffer, glm::vec3 value) {
 /**
 * Initialize memory, update some globals
 */
-void Scan_Matching::initSimulation(int N, vector<glm::vec3>& transformedPoints, vector<glm::vec3>& originalPoints) {
+void Scan_Matching::initSimulation(int N, vector<glm::vec3>& transformedPoints, vector<glm::vec3>& originalPoints, glm::vec4 *kdTree, int kdTreeLength) {
   numObjects = N;
   dim3 fullBlocksPerGrid((N + blockSize - 1) / blockSize);
 
@@ -121,9 +123,22 @@ void Scan_Matching::initSimulation(int N, vector<glm::vec3>& transformedPoints, 
   cudaMemcpy(&dev_pos[originalPoints.size()], &transformedPoints[0], transformedPoints.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
   checkCUDAErrorWithLine("cudaMemcpy failed!");
 
-  kernColorPoints << <dim3((transformedPoints.size() + blockSize - 1) / blockSize), blockSize >> > (transformedPoints.size(), dev_vel1, glm::vec3(1, 0, 0));
+
+
+  if (KDTREE) {
+	  cudaMalloc((void**)&dev_kdTree, kdTreeLength * sizeof(glm::vec4));
+	  checkCUDAErrorWithLine("cudaMalloc dev_kdTree failed!");
+
+	  cudaMalloc((void**)&dev_kdTree_stack, transformedPoints.size() * ceil(log2(kdTreeLength)) * sizeof(Node));
+	  checkCUDAErrorWithLine("cudaMalloc dev_kdTree_stack failed!");
+
+	  cudaMemcpy(dev_kdTree, &kdTree[0], kdTreeLength * sizeof(glm::vec4), cudaMemcpyHostToDevice);
+	  checkCUDAErrorWithLine("cudaMemcpy failed!");
+  }
+
+  kernColorPoints << <dim3((transformedPoints.size() + blockSize - 1) / blockSize), blockSize >> > (transformedPoints.size(), dev_vel1, glm::vec3(1, 1, 0));
   checkCUDAErrorWithLine("kernColorPoints failed!");
-  kernColorPoints << <dim3((originalPoints.size() + blockSize - 1) / blockSize), blockSize >> > (originalPoints.size(), &dev_vel1[transformedPoints.size()], glm::vec3(0, 0, 1));
+  kernColorPoints << <dim3((originalPoints.size() + blockSize - 1) / blockSize), blockSize >> > (originalPoints.size(), &dev_vel1[transformedPoints.size()], glm::vec3(0, 1, 0));
   checkCUDAErrorWithLine("kernColorPoints failed!");
 
 }
@@ -259,6 +274,49 @@ __global__ void kernFindCorrespondingPoint(glm::vec3 *initialPoints, int numInit
 	}
 }
 
+__global__ void kernTraverseKDTree(int numInitialPoints, int numOfCol, glm::vec3 *dev_pos, Scan_Matching::Node *dev_kdTree_stack, glm::vec4* dev_kdTree, glm::vec3 *correspondingPoints) {
+	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+	if (index < numInitialPoints) {
+		int top = 0;
+		float minDistance = FLT_MAX;
+		glm::vec3 closestPoint;
+		Scan_Matching::Node startNode(0,0,true);
+		dev_kdTree_stack[index * numOfCol + top] = startNode;
+		glm::vec3 basePoint = dev_pos[index];
+		while (top >= 0) {
+			Scan_Matching::Node currentNode = dev_kdTree_stack[index * numOfCol + top--];
+			if (dev_kdTree[currentNode.pointIdx].w == 0.0f) {
+				continue;
+			}
+			glm::vec3 newPoint = glm::vec3(dev_kdTree[currentNode.pointIdx]);
+			if (!currentNode.goodNode) {
+				glm::vec3 newPointParent = glm::vec3(dev_kdTree[(currentNode.pointIdx - 1)/2]);
+				if (abs(basePoint[currentNode.depth % 3] - newPointParent[currentNode.depth % 3]) >= minDistance) {
+					continue;
+				}
+			}
+
+			float newDistance = glm::distance(newPoint, basePoint);
+			if (newDistance < minDistance) {
+				closestPoint = newPoint;
+				minDistance = newDistance;
+			}
+
+			bool left = basePoint[currentNode.depth % 3] < newPoint[currentNode.depth % 3];
+
+			int goodSide = (2 * currentNode.pointIdx) + ((left) ? 1 : 2);
+			int badSide = (2 * currentNode.pointIdx) + ((left) ? 2 : 1);
+
+			Scan_Matching::Node goodNode(goodSide, currentNode.depth + 1, true);
+			Scan_Matching::Node badNode(badSide, currentNode.depth + 1, false);
+
+			dev_kdTree_stack[index * numOfCol + ++top] = badNode;
+			dev_kdTree_stack[index * numOfCol + ++top] = goodNode;
+		}
+		correspondingPoints[index] = closestPoint;
+	}
+}
+
 __global__ void kernMultMatrices(glm::vec3 *initialPoints, int numInitialPoints, glm::vec3 *correspondingPoints, glm::vec3 initialCenter, glm::vec3 correspondingCenter,glm::mat3 *prod) {
 	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 	if (index < numInitialPoints)
@@ -270,6 +328,7 @@ int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 if (index < numInitialPoints)
 	initialPoints[index] = R * initialPoints[index] + T;
 }
+
 
 void Scan_Matching::runGPU(int numFinalPoints, int numInitialPoints) {
 	cout << "At Line : " << __LINE__ << endl;
@@ -330,7 +389,60 @@ void Scan_Matching::runGPU(int numFinalPoints, int numInitialPoints) {
 	}
 }
 
-void Scan_Matching::runGPUWithKDTree(int N, vector<glm::vec3>& finalPoints, vector<glm::vec3>& initalPoints) {
+void Scan_Matching::runGPUWithKDTree(int numFinalPoints, int numInitialPoints, int kdTreeLength) {
+
+	dim3 fullBlocksPerGrid((numInitialPoints + blockSize - 1) / blockSize);
+
+	//kernFindCorrespondingPoint << <fullBlocksPerGrid, blockSize >> > (dev_pos, numInitialPoints, dev_correspond, numFinalPoints);
+	kernTraverseKDTree << <fullBlocksPerGrid, blockSize >> > (numInitialPoints, ceil(log2(kdTreeLength)), dev_pos, dev_kdTree_stack, dev_kdTree, dev_correspond);
+	checkCUDAErrorWithLine("kernTraverseKDTree failed!");
+
+	thrust::device_ptr<glm::vec3> thrust_dev_pos(dev_pos);
+	thrust::device_ptr<glm::vec3> thrust_dev_correspond(dev_correspond);
+
+	glm::vec3 initialCenter = glm::vec3(thrust::reduce(thrust_dev_pos, thrust_dev_pos + numInitialPoints, glm::vec3(0.0f, 0.0f, 0.0f)));
+	glm::vec3 correspondingCenter = glm::vec3(thrust::reduce(thrust_dev_correspond, thrust_dev_correspond + numInitialPoints, glm::vec3(0.0f, 0.0f, 0.0f)));
+
+	initialCenter /= numInitialPoints;
+	correspondingCenter /= numInitialPoints;
+
+	glm::mat3 *dev_prod;
+
+	cudaMalloc((void**)&dev_prod, numInitialPoints * sizeof(glm::mat3));
+	checkCUDAErrorWithLine("cudaMalloc dev_prod failed!");
+
+	kernMultMatrices << <fullBlocksPerGrid, blockSize >> > (dev_pos, numInitialPoints, dev_correspond, initialCenter, correspondingCenter, dev_prod);
+	checkCUDAErrorWithLine("kernMultMatrices failed!");
+	glm::mat3 W = thrust::reduce(thrust::device, dev_prod, dev_prod + numInitialPoints, glm::mat3(0));
+
+	float U[3][3] = { 0 };
+	float S[3][3] = { 0 };
+	float V[3][3] = { 0 };
+	svd(W[0][0], W[0][1], W[0][2], W[1][0], W[1][1], W[1][2], W[2][0], W[2][1], W[2][2],
+		U[0][0], U[0][1], U[0][2], U[1][0], U[1][1], U[1][2], U[2][0], U[2][1], U[2][2],
+		S[0][0], S[0][1], S[0][2], S[1][0], S[1][1], S[1][2], S[2][0], S[2][1], S[2][2],
+		V[0][0], V[0][1], V[0][2], V[1][0], V[1][1], V[1][2], V[2][0], V[2][1], V[2][2]
+	);
+
+	glm::mat3 R = glm::mat3(glm::vec3(U[0][0], U[1][0], U[2][0]), glm::vec3(U[0][1], U[1][1], U[2][1]), glm::vec3(U[0][2], U[1][2], U[2][2])) *
+		glm::mat3(glm::vec3(V[0][0], V[0][1], V[0][2]), glm::vec3(V[1][0], V[1][1], V[1][2]), glm::vec3(V[2][0], V[2][1], V[2][2]));
+	if (glm::determinant(R) < 0) {
+		R = glm::mat3(glm::vec3(U[0][0], U[1][0], U[2][0]), glm::vec3(U[0][1], U[1][1], U[2][1]), glm::vec3(U[0][2], U[1][2], U[2][2])) *
+			glm::mat3(glm::vec3(V[0][0], V[0][1], -1.0f * V[0][2]), glm::vec3(V[1][0], V[1][1], -1.0f * V[1][2]), glm::vec3(V[2][0], V[2][1], -1.0f * V[2][2]));
+	}
+	glm::vec3 T = correspondingCenter - (R * initialCenter);
+
+	kernUpdatePoints << <fullBlocksPerGrid, blockSize >> > (dev_pos, numInitialPoints, R, T);
+	checkCUDAErrorWithLine("kernUpdatePoints failed!");
+	cudaDeviceSynchronize();
+
+	if (TIMER) {
+		timer = clock() - timer;
+		total_time = ((double)timer) / CLOCKS_PER_SEC;
+	}
+	if (TIMER) {
+		printf("(Time for this iteration : %f \n", total_time);
+	}
 }
 
 void Scan_Matching::endSimulation() {
@@ -338,4 +450,46 @@ void Scan_Matching::endSimulation() {
   cudaFree(dev_vel2);
   cudaFree(dev_pos);
 
+}
+bool sortX(const glm::vec3 &p1, const glm::vec3 &p2)
+{
+	return p1.x < p2.x;
+}
+bool sortY(const glm::vec3 &p1, const glm::vec3 &p2)
+{
+	return p1.y < p2.y;
+}
+bool sortZ(const glm::vec3 &p1, const glm::vec3 &p2)
+{
+	return p1.z < p2.z;
+}
+
+//__device__ Scan_Matching::Node::Node(int  p, int d, bool g) {
+//	pointIdx = p;
+//	depth = d;
+//	goodNode = g;
+//}
+
+void Scan_Matching::create(std::vector<glm::vec3> input, glm::vec4 *list, int start, int end, int self, int recursionDepth) {
+
+	if (start > end)
+		return;
+
+	if (recursionDepth % 3 == 0) {
+		sort(input.begin() + start, input.begin() + end + 1, sortX);
+	}
+
+	if (recursionDepth % 3 == 1) {
+		sort(input.begin() + start, input.begin() + end + 1, sortY);
+	}
+
+	if (recursionDepth % 3 == 2) {
+		sort(input.begin() + start, input.begin() + end + 1, sortZ);
+	}
+
+	// set current node
+	int mid = (int)((start + end) / 2);
+	list[self] = glm::vec4(input[mid].x, input[mid].y, input[mid].z, 1.0f);
+	create(input, list, start, mid - 1, 2 * self + 1, recursionDepth + 1);
+	create(input, list, mid + 1, end, 2 * self + 2, recursionDepth + 1);
 }

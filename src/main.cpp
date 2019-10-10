@@ -13,17 +13,14 @@
 // Configuration
 // ================
 
-#define VISUALIZE 1
-#define CPU false
-#define GPU true
-#define KDTREE false
-#define RANDTRANSFORM true
-#define INITTRANSFORM true
 
 // LOOK-1.2 - change this to adjust particle count in the simulation
 int N_FOR_VIS;
 vector<glm::vec3> originalPoints;
 vector<glm::vec3> transformedPoints;
+glm::vec4 *kdTree;
+int kdTreeLength;
+std::vector<Scan_Matching::Node> list;
 glm::mat4 randomTransform;
 glm::mat4 centerTransform;
 
@@ -62,14 +59,26 @@ int main(int argc, char* argv[]) {
   if (INITTRANSFORM) {
 	  /*glm::vec3 t(-40, 40, 0.0f);
 	  glm::vec3 r(0.0f, 0.0f, 0.0f);*/
-	  glm::vec3 t(-0.1f, 0.2, +0.3f);
+	  /*glm::vec3 t(-0.1f, 0.2, +0.3f);
 	  glm::vec3 r(-0.5f, -0.5f, 0.5f);
-	  glm::vec3 s(2.5, 2.5, 2.5);
+	  glm::vec3 s(2.5, 2.5, 2.5);*/
+
+	  //Buddha
+	  glm::vec3 t(0.0f, 0.0f, +0.3f);
+	  glm::vec3 r(-1.0f, -0.5f, 0.3f);
+	  glm::vec3 s(2, 2, 2);
 	  centerTransform = utilityCore::buildTransformationMatrix(t, r, s);
   }
   if (RANDTRANSFORM) {
-	  glm::vec3 t(20, -30, 20);
-	  glm::vec3 r(0.0f, 0.0f, -0.5f);
+	  //glm::vec3 t(20, -30, 20);
+	  //glm::vec3 r(0.0f, 0.0f, -0.5f);
+
+
+	//Buddha
+	  glm::vec3 t(0.0f, 0.0f, +0.3f);
+	  glm::vec3 r(0.5f, 0.0f, 0.0f);
+	  
+	  
 	  glm::vec3 s(1, 1, 1);
 	  randomTransform = utilityCore::buildTransformationMatrix(t, r, s);
   }
@@ -77,6 +86,11 @@ int main(int argc, char* argv[]) {
 	  readPointCloud(argv[2], transformedPoints);
   }
   readPointCloud(argv[1], originalPoints);
+  if (KDTREE) {
+	  kdTreeLength = pow(2.0, ceil(log2(originalPoints.size() / 1.0) / 1.0) + 1.0);
+	  kdTree = new glm::vec4[kdTreeLength];
+	  Scan_Matching::create(originalPoints, kdTree, 0, originalPoints.size() - 1, 0, 0);
+  }
 
   N_FOR_VIS = originalPoints.size() + transformedPoints.size();
   cout << "Total Points : " << N_FOR_VIS << endl;
@@ -163,7 +177,7 @@ bool init(int argc, char **argv) {
   cudaGLRegisterBufferObject(boidVBO_velocities);
 
   // Initialize N-body simulation
-  Scan_Matching::initSimulation(N_FOR_VIS, originalPoints, transformedPoints);
+  Scan_Matching::initSimulation(N_FOR_VIS, originalPoints, transformedPoints, kdTree, kdTreeLength);
 
   updateCamera();
 
@@ -261,7 +275,7 @@ void initShaders(GLuint * program) {
 		}
 		else {
 			if (GPU && !CPU && KDTREE) {
-				Scan_Matching::runGPUWithKDTree(N_FOR_VIS, originalPoints, transformedPoints);
+				Scan_Matching::runGPUWithKDTree(originalPoints.size(), transformedPoints.size(), kdTreeLength);
 
 			}
 		}
