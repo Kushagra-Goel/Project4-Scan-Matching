@@ -59,22 +59,22 @@ We implement the whole algorithm on the CPU, using highly optimized [svd3 librar
 
 | Scene         | Number of Points  | Final FPS  | Average Time Taken |
 | ------------- |:-----------------:| ----------:| ------------------:|
-| Cylinder      | 5000              | 0.1        |          5 ms      |
-| Cube          | 5000              | 0.1        |          5 ms      |
-| Bunny         | 5000              | 0.1        |          5 ms      |
-| Buddha        | 5000              | 0.1        |          5 ms      |
-| Dragon        | 5000              | 0.1        |          5 ms      |
+| Cylinder      | 11502             | 8.1        |          0.12 s    |
+| Cube          | 28762             | 1.4        |          0.75 s    |
+| Bunny         | 80512             | 0.3        |          6.06 s    |
+| Dragon        | 83682             | 0.2        |          6.1 s     |
+| Buddha        | 156112            | 0.0        |          20.68 s   |
 
 ### Naive GPU Implementation
 We convert the CPU code to the  equivalent GPU code performing the bulk parallalizable operations on the GPU.
 
 | Scene         | Number of Points  | Final FPS  | Average Time Taken |
 | ------------- |:-----------------:| ----------:| ------------------:|
-| Cylinder      | 5000              | 0.1        |          5 ms      |
-| Cube          | 5000              | 0.1        |          5 ms      |
-| Bunny         | 5000              | 0.1        |          5 ms      |
-| Buddha        | 5000              | 0.1        |          5 ms      |
-| Dragon        | 5000              | 0.1        |          5 ms      |
+| Cylinder      | 11502             | 141.9      |          0.002 s   |
+| Cube          | 28762             | 127.6      |          0.004 s   |
+| Bunny         | 80512             | 37.9       |          0.023 s   |
+| Dragon        | 83682             | 32.5       |          0.025 s   |
+| Buddha        | 156112            | 11.7       |          0.082 s   |
 
 
 ### GPU Implementation with KD-Trees
@@ -87,8 +87,10 @@ We see significant benefits of KD Tree when the number of points is high.
 
 | Scene         | Number of Points  | Final FPS  | Average Time Taken |
 | ------------- |:-----------------:| ----------:| ------------------:|
-| Cylinder      | 5000              | 0.1        |          5 ms      |
-| Cube          | 5000              | 0.1        |          5 ms      |
-| Bunny         | 5000              | 0.1        |          5 ms      |
-| Buddha        | 5000              | 0.1        |          5 ms      |
-| Dragon        | 5000              | 0.1        |          5 ms      |
+| Cylinder      | 11502             | 145.8      |          5.5 s     |
+| Cube          | 28762             | 146.3      |          2.5 s     |
+| Bunny         | 80512             | 135.5      |          5.98 s    |
+| Dragon        | 83682             | 134.5      |          7.1 s     | 
+| Buddha        | 156112            | 80.2       |          3.58 s    | 
+
+Bizarrely the time taken for KD-Tree is very high even though the frame rates are almost triple that of naive GPU. The speedup visible too. Not sure why this is happening
