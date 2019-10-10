@@ -59,24 +59,23 @@ We implement the whole algorithm on the CPU, using highly optimized [svd3 librar
 
 | Scene         | Number of Points  | Final FPS  | Average Time Taken |
 | ------------- |:-----------------:| ----------:| ------------------:|
-| Cone          | 5000              | 0.1        |          5 ms      |
-| Cone          | 5000              | 0.1        |          5 ms      |
-| Cone          | 5000              | 0.1        |          5 ms      |
-| Cone          | 5000              | 0.1        |          5 ms      |
-| Cone          | 5000              | 0.1        |          5 ms      |
-| Cone          | 5000              | 0.1        |          5 ms      |
+| Cylinder      | 5000              | 0.1        |          5 ms      |
+| Cube          | 5000              | 0.1        |          5 ms      |
+| Bunny         | 5000              | 0.1        |          5 ms      |
+| Buddha        | 5000              | 0.1        |          5 ms      |
+| Dragon        | 5000              | 0.1        |          5 ms      |
 
 ### Naive GPU Implementation
 We convert the CPU code to the  equivalent GPU code performing the bulk parallalizable operations on the GPU.
 
 | Scene         | Number of Points  | Final FPS  | Average Time Taken |
 | ------------- |:-----------------:| ----------:| ------------------:|
-| Cone          | 5000              | 0.1        |          5 ms      |
-| Cone          | 5000              | 0.1        |          5 ms      |
-| Cone          | 5000              | 0.1        |          5 ms      |
-| Cone          | 5000              | 0.1        |          5 ms      |
-| Cone          | 5000              | 0.1        |          5 ms      |
-| Cone          | 5000              | 0.1        |          5 ms      |
+| Cylinder      | 5000              | 0.1        |          5 ms      |
+| Cube          | 5000              | 0.1        |          5 ms      |
+| Bunny         | 5000              | 0.1        |          5 ms      |
+| Buddha        | 5000              | 0.1        |          5 ms      |
+| Dragon        | 5000              | 0.1        |          5 ms      |
+
 
 ### GPU Implementation with KD-Trees
 We observe that the code takes long time to find the closest point correspondences as it is iterating over all the points in the scene, we can optimize this by using KD-Trees and pruning the points dynamically based on the closest point seen so far. Here is a rough idea of what data structure kd-trees creates and how the pruning works. 
@@ -86,12 +85,10 @@ We observe that the code takes long time to find the closest point correspondenc
 
 We see significant benefits of KD Tree when the number of points is high.  
 
-
 | Scene         | Number of Points  | Final FPS  | Average Time Taken |
 | ------------- |:-----------------:| ----------:| ------------------:|
-| Cone          | 5000              | 0.1        |          5 ms      |
-| Cone          | 5000              | 0.1        |          5 ms      |
-| Cone          | 5000              | 0.1        |          5 ms      |
-| Cone          | 5000              | 0.1        |          5 ms      |
-| Cone          | 5000              | 0.1        |          5 ms      |
-| Cone          | 5000              | 0.1        |          5 ms      |
+| Cylinder      | 5000              | 0.1        |          5 ms      |
+| Cube          | 5000              | 0.1        |          5 ms      |
+| Bunny         | 5000              | 0.1        |          5 ms      |
+| Buddha        | 5000              | 0.1        |          5 ms      |
+| Dragon        | 5000              | 0.1        |          5 ms      |
