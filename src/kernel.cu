@@ -456,6 +456,14 @@ void Scan_Matching::endSimulation() {
   cudaFree(dev_vel2);
   cudaFree(dev_pos);
 
+
+
+  if (KDTREE) {
+	  cudaFree(dev_kdTree);
+	  cudaFree(dev_kdTree_stack);
+	  cudaFree(dev_kdTree);
+  }
+
 }
 bool sortX(const glm::vec3 &p1, const glm::vec3 &p2)
 {
