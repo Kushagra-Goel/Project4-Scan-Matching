@@ -17,19 +17,21 @@ Let us start with the ever famous stanford bunny.
 ## Iterative Closest Point Search
 Iterative Closest Point Search works by computing the correspondence between initial location and final location by naively considering the closest point in the final location for each point in the initial location. Then it computes the best approximation for the rotation and the translation matrix and transforms the initial position accordingly. It keeps repeating this until a stopping condition is encountered like a threshold or any other convergence criterion. Let us look the original Algorithm in its original glory.
 
+<img src ="img/Algorithm.jpg" width = 600/>
 
 ## The Algorithm
 Let us see how the algorithm is actually implemented in a program. We are essentially trying to find the values of rotation and translation such that the following error is minimised.  
-
+<img src = "img/Loss.jpg" width =200/>  
 Differentiating with respect to the translation, we can see that Translation is essentially the difference between the centroids. Rewriting the points as offset to centroids and the frobenius norm of the loss in terms of its trace, we get 
+<img src = "img/TraceLoss.jpg" width =400/>  
+Which is essentially reduces to  
+<img src = "img/FinalOpt.jpg" width = 200>
 
-Which is essentially reduces to 
+And with some final sprinkle of math magic, we get   
+<img src = "img/MathMagic.jpg">
 
 
-And with some final sprinkle of math magic, we get 
-
-
-(Shh! just silently make sure the determinant is positive otherwise you'll be in huge trouble ;) )
+(Shh! just silently make sure the determinant is positive otherwise you'll be in huge trouble )
 ## Implementation
 ### CPU Implementation
 We implement the whole algorithm on the CPU, using highly optimized [svd3 library by Eric Jang](https://github.com/ericjang/svd3). Here are some statistics about how the CPU scores with number of points in the point cloud.
@@ -54,8 +56,11 @@ We convert the CPU code to the  equivalent GPU code performing the bulk parallal
 | Cone          | 5000              | 0.1        |          5 ms      |
 | Cone          | 5000              | 0.1        |          5 ms      |
 | Cone          | 5000              | 0.1        |          5 ms      |
+
 ### GPU Implementation with KD-Trees
-We observe that the code takes long time to find the closest point correspondences as it is iterating over all the points in the scene, we can optimize this by using KD-Trees and pruning the points dynamically based on the closest point seen so far. Here is a rough idea of what data structure kd-trees creates and how the pruning works.
+We observe that the code takes long time to find the closest point correspondences as it is iterating over all the points in the scene, we can optimize this by using KD-Trees and pruning the points dynamically based on the closest point seen so far. Here is a rough idea of what data structure kd-trees creates and how the pruning works. 
+
+<img src = "img/2d_kdtree.png" width = 200> <img src = "img/nn_kdtree.gif" width = 600>
 
 
 We see significant benefits of KD Tree when the number of points is high.  
