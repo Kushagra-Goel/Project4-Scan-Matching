@@ -15,7 +15,7 @@ using namespace std;
 #define VISUALIZE 1
 #define CPU false
 #define GPU true
-#define KDTREE false
+#define KDTREE true
 #define RANDTRANSFORM true
 #define INITTRANSFORM true
 

@@ -11,7 +11,7 @@
 
 using namespace std;
 
-#define TIMER true
+#define TIMER false
 clock_t timer;
 double total_time = 0;
 
@@ -46,7 +46,7 @@ void checkCUDAError(const char *msg, int line = -1) {
 *****************/
 
 /*! Block size used for CUDA kernel launch. */
-#define blockSize 128
+#define blockSize 256
 
 /*! Size of the starting area in simulation space. */
 #define scene_scale 0.1f
@@ -285,7 +285,7 @@ __global__ void kernTraverseKDTree(int numInitialPoints, int numOfCol, glm::vec3
 		glm::vec3 basePoint = dev_pos[index];
 		while (top >= 0) {
 			Scan_Matching::Node currentNode = dev_kdTree_stack[index * numOfCol + top--];
-			if (dev_kdTree[currentNode.pointIdx].w == 0.0f) {
+			if (dev_kdTree[currentNode.pointIdx][3] == 0.0f) {
 				continue;
 			}
 			glm::vec3 newPoint = glm::vec3(dev_kdTree[currentNode.pointIdx]);
