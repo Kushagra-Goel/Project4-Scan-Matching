@@ -94,4 +94,6 @@ We see significant benefits of KD Tree when the number of points is high.
 | Buddha        | 156112            | 80.2       |          3.58 s    | 
 
 Bizarrely the time taken for KD-Tree is very high even though the frame rates are almost triple that of naive GPU. The speedup visible too. Not sure why this is happening.  
-But according to our expectation, KD-Tree holds up really well when the number of points increase a lot.
+But according to our expectation, KD-Tree holds up really well when the number of points increase a lot. Which is evident from the chart below.  
+
+<img src = "img/FPSvsNumPoints.jpg" width = 600>
